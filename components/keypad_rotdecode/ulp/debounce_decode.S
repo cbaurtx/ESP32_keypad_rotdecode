@@ -1,0 +1,217 @@
+/* ULP assembly files are passed through C preprocessor first, so include directives
+   and C macros may be used in these files
+*/
+
+#include "soc/rtc_cntl_reg.h"
+#include "soc/rtc_io_reg.h"
+#include "soc/soc_ulp.h"
+
+#include "sdkconfig.h"
+
+/*
+   ULP register usage:
+   r0 temporary
+   r1 current value
+   r2 previous value
+   r4 memory address
+*/
+
+#define CONFIG_AB_RTC_A_GPIO_MASK (3 << CONFIG_AB_RTC_A_GPIO_NUM)
+
+  /* Define variables, which go into .bss section (zero-initialized data) */
+  .bss
+
+  /* Each bit corresponds to a button */
+  .global btn
+btn:
+  .long 0
+
+  /* io before botton was pressed or released or the encoder changed */
+  .global prev_io
+prev_io:
+  .long 0
+
+  /* current io values */
+  .global curr_io
+curr_io:
+  .long 0
+
+  /* ab encoder signals, previous and current. Bits 0-1 current; 2-3 previous */
+  .global rot_ab
+rot_ab:
+  .long 0
+
+  /* 0: no change; +1 rot cw; -1 rot ccw */
+  .global rot_st
+rot_st:
+  .long 0
+
+  /* Event 1 = btn pressed, 2 = btn released, 3 = rotated */
+  .global evnt
+evnt:
+  .long 0
+
+  /* Code goes into .text section */
+  .text
+
+  /* Look-up table to convert from AB old and new to rot event */
+  .global st_tbl
+st_tbl:
+  .long 0
+  .long 1
+  .long -1
+  .long 0
+  .long -1
+  .long 0
+  .long 0
+  .long 1
+  .long 1
+  .long 0
+  .long 0
+  .long -1
+  .long 0
+  .long -1
+  .long 1
+  .long 0
+
+  .global entry
+
+entry:
+  /* establish initial values */
+  READ_RTC_REG(RTC_GPIO_IN_REG, RTC_GPIO_IN_NEXT_S, 16)
+  move r2, r0
+  and r0, r0, (CONFIG_AB_RTC_A_GPIO_MASK | CONFIG_BTN_RTC_GPIO_MASK)
+  move r3, prev_io
+  st r0, r3, 0
+
+  and r0, r0, CONFIG_AB_RTC_A_GPIO_MASK
+  rsh r0, r0, 0x03
+  move r3, rot_ab
+  st r0, r3, 0
+
+loop_forever:
+
+  /* Read the value of lower 9 RTC IOs into R0 */
+  READ_RTC_REG(RTC_GPIO_IN_REG, RTC_GPIO_IN_NEXT_S, 16)
+
+  /* current value to r1 */
+  move r1, r0
+
+  /* mask unused ios */
+  and r0, r0, (CONFIG_AB_RTC_A_GPIO_MASK | CONFIG_BTN_RTC_GPIO_MASK)
+
+  /* io change? */
+  sub r0, r1, r2
+  jump loop_forever, EQ
+
+  /* store in variable io */
+  move r3, curr_io
+  st r1, r3, 0
+
+  /* wait for bouncing to stop */
+  wait CONFIG_BTN_DEBOUNCE_WAIT
+
+  /* Read again the values into R0 */
+  READ_RTC_REG(RTC_GPIO_IN_REG, RTC_GPIO_IN_NEXT_S, 16)
+
+  /* mask unused ios */
+  and r0, r0, (CONFIG_AB_RTC_A_GPIO_MASK | CONFIG_BTN_RTC_GPIO_MASK)
+  sub r0, r0, r1
+
+  /* io changed (no bounce or transient) */
+  jump io_chg, EQ
+  jump loop_forever
+
+io_chg:
+  and r1, r1, CONFIG_AB_RTC_A_GPIO_MASK
+  and r2, r2, CONFIG_AB_RTC_A_GPIO_MASK
+
+  sub r0, r1, r2
+  jump btn_chg, EQ
+
+  /* encoder AB changed */
+  move r3, evnt
+  move r0, 3
+  st r0, r3, 0
+
+  /* decode AB */
+  /* WRITE_RTC_REG(RTC_GPIO_OUT_REG,RTC_GPIO_OUT_DATA_S+12,1,1) */
+  move r3, curr_io
+  ld r1, r3, 0
+  rsh r1, r1, 3
+
+  move r3, rot_ab
+  ld r0, r3, 0
+  lsh r0, r0, 2
+  or r0, r0, r1
+  and r0, r0, 0x000f
+
+  /* table look-up */
+  add r1, r0, st_tbl
+  ld r0, r1, 0
+
+  /* store in rot_st */
+  move r3, rot_st
+  st r0, r3, 0
+
+  /* store current ab as previous ab */
+  move r3, curr_io
+  ld r0, r3, 0
+  rsh r0, r0, 3
+  and r0, r0, 0x0003
+
+  move r3, rot_ab
+  st r0, r3, 0
+
+  /* restore r1 and r2 */
+  move r3, curr_io
+  ld r1, r3, 0
+  move r2, r1
+
+  /* trigger ULP int to notify Xtensa */
+  wake
+
+  jump loop_forever
+
+btn_chg:
+  /* WRITE_RTC_REG(RTC_GPIO_OUT_REG,RTC_GPIO_OUT_DATA_S+12,1,0) */
+  move r3, curr_io
+  ld r1, r3, 0
+  and r1, r1, CONFIG_BTN_RTC_GPIO_MASK
+  move r3, prev_io
+  ld r2, r3, 0
+  and r2, r2, CONFIG_BTN_RTC_GPIO_MASK
+
+  sub r0, r1, r2
+  jump h_to_l, OV
+
+  /* WRITE_RTC_REG(RTC_GPIO_OUT_REG,RTC_GPIO_OUT_DATA_S+12,1,1) */
+  move r3, evnt
+  move r0, 1
+  st r0, r3, 0
+  jump cont_1
+
+h_to_l:
+  /* WRITE_RTC_REG(RTC_GPIO_OUT_REG,RTC_GPIO_OUT_DATA_S+12,1,0) */
+  move r3, evnt
+  move r0, 2
+  st r0, r3, 0
+
+cont_1:
+  /* store to variable btn */
+  move r3, btn
+  st r1, r3, 0
+
+  /* restore r1 */
+  move r3, curr_io
+  ld r1, r3, 0
+
+  /* previous value = current value */
+  move r2, r1
+  move r3, prev_io
+  st r2, r3, 0
+
+  /* trigger ULP int to notify Xtensa */
+  wake
+
+  jump loop_forever

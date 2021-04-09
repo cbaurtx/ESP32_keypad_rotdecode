@@ -1,0 +1,56 @@
+#
+# EXT1 wake-up is used and only RTCIO 0 to 15 are supported
+#
+# Default settings
+#
+# RTC_GPIOs used:
+# Name                 RTC_IO num    GPIO num         sleep mask
+# Reed contact         RTC_GPIO00    GPIO36           x10
+# Rotary B             RTC_GPIO03    GPIO39           x80
+# Rotary A             RTC_GPIO04    GPIO34           x04
+# Rotary push          RTC_GPIO05    GPIO35           x08
+# Push 1               RTC_GPIO08    GPIO33           x02
+#
+# GPIO 34-39 are input only and do not feature internal pull-up / pull-down resistors
+# Internal pull-up / internal pull-down resitors are not used to conserve power
+#
+
+menu "Keypad & rotary decoder"
+
+    config AB_RTC_A_GPIO_NUM
+        int "Rotary encoder A signal RTC_IO number"
+        range 0 14
+        default 3
+        help
+            RTC_GPIO number for RTC_GPIOs to be used for rotary decoder. Two consecutive IOs are used for A and B.
+
+    config ROT_CNT_MAX
+        int "Maximum of pulse counter"
+        range 1 65535
+        default 3
+        help
+            Range minus one of pulse counter of the rotary decoder. Minimum is 1 corresponding to a 1-bit counter.
+            The counter is wrapping around, so counting up from ROT_CNT_MAX yields 0
+
+    config BTN_RTC_GPIO_MASK
+        hex "Push button mask"
+        range 1 0xfffc
+        default 0x0121
+        help
+            Mask for RTC_GPIOs to be used for buttons. Do not set bits used in the rotary encoder AB signal mask. At least one bit must be set
+
+    config BTN_DEBOUNCE_WAIT
+        int "Debounce wait time. Time tick = 0.125µs"
+        range 1 65535
+        default 32768
+        help
+            Wait for bouncing to stop. Time tick = 0.125µs
+
+    config RTC_GPIO_WAKE_MASK
+        hex "Wake-up mask"
+        range 1 0xffff
+        default 0x0121
+        help
+            Mask which inputs wake the ESP from hibernation. Default excludes the AB encoder signals and includes all default buttons
+
+endmenu
