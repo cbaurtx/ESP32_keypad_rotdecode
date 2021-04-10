@@ -10,6 +10,9 @@
 
 #include "keypad_rotdecode.h"
 
+// #include "ulp_debounce_decode.h"
+// extern const uint8_t ulp_main_bin_start[] asm("_binary_ulp_main_bin_start");
+// extern const uint8_t ulp_main_bin_end[]   asm("_binary_ulp_main_bin_end");
 
 void app_main(void)
 {
@@ -17,7 +20,7 @@ void app_main(void)
     key_rot_init();
 
     for(;;) {
-        key_code = reg_wait_task();
+        key_code = 0; //reg_wait_task();
         printf("Key event: %8lx\n", key_code);
         taskYIELD();
         }

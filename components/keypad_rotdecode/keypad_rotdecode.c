@@ -31,8 +31,8 @@
 #define  CONFIG_AB_RTC_B_GPIO_NUM (CONFIG_AB_RTC_A_GPIO_NUM + 1)
 
 
-extern const uint8_t ulp_main_bin_start[] asm("_binary_ulp_main_bin_start");
-extern const uint8_t ulp_main_bin_end[]   asm("_binary_ulp_main_bin_end");
+extern const uint8_t ulp_debounce_decode_bin_start[] asm("_binary_ulp_debounce_decode_bin_start");
+extern const uint8_t ulp_debounce_decode_bin_end[]   asm("_binary_ulp_debounce_decode_bin_end");
 
 static void IRAM_ATTR keyrot_isr(void *);
 static void init_ulp_prog(void);
@@ -72,6 +72,12 @@ void key_rot_init()
 }
 
 
+esp_err_t reg_wait_task()
+{
+    return(0);
+}
+
+
 static void IRAM_ATTR keyrot_isr(void* arg)
 /**
  * ULP interrupt service routine. ULP interrupt triggered when ULP executes 'wake' instruction
@@ -106,8 +112,8 @@ static void IRAM_ATTR keyrot_isr(void* arg)
 
 static void init_ulp_prog(void)
 {
-    esp_err_t err = ulp_load_binary(0, ulp_main_bin_start,
-            (ulp_main_bin_end - ulp_main_bin_start) / sizeof(uint32_t));
+    esp_err_t err = ulp_load_binary(0, ulp_debounce_decode_bin_start,
+            (ulp_debounce_decode_bin_end - ulp_debounce_decode_bin_start) / sizeof(uint32_t));
     ESP_ERROR_CHECK(err);
 
     /* note: ULP variables are initialized by the ULP
