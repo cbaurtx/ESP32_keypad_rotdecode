@@ -10,19 +10,22 @@
 
 #include "keypad_rotdecode.h"
 
-// #include "ulp_debounce_decode.h"
-// extern const uint8_t ulp_main_bin_start[] asm("_binary_ulp_main_bin_start");
-// extern const uint8_t ulp_main_bin_end[]   asm("_binary_ulp_main_bin_end");
 
 void app_main(void)
 {
-    long unsigned int key_code;
+    unsigned int key_code;
+    esp_err_t err;
     key_rot_init();
 
     for(;;) {
-        key_code = 0; //reg_wait_task();
-        printf("Key event: %8lx\n", key_code);
-        taskYIELD();
-        }
+      err = key_rot_read(&key_code, 6000); // 1 minute timeout
 
+      if(err == ESP_OK)
+        printf("Key event: %8x\n", key_code);
+      if(err == ESP_ERR_TIMEOUT)
+        printf("Timed out");
+
+      taskYIELD();
     }
+}
+

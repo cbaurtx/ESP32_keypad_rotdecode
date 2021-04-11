@@ -23,6 +23,7 @@
 #include "driver/rtc_io.h"
 #include "driver/rtc_cntl.h"
 #include "esp32/ulp.h"
+#include "esp_err.h"
 
 #include "ulp_debounce_decode.h"
 #include "keypad_rotdecode.h"
@@ -34,7 +35,7 @@
 extern const uint8_t ulp_debounce_decode_bin_start[] asm("_binary_ulp_debounce_decode_bin_start");
 extern const uint8_t ulp_debounce_decode_bin_end[]   asm("_binary_ulp_debounce_decode_bin_end");
 
-static void IRAM_ATTR keyrot_isr(void *);
+static void IRAM_ATTR key_rot_isr(void *);
 static void init_ulp_prog(void);
 static void start_ulp_prog(void);
 static void init_rtcios(void);
@@ -45,7 +46,7 @@ static void init_rtcio(unsigned int rtcio);
 
 /* shared with ISR */
 static TaskHandle_t volatile recv_task;
-static unsigned int volatile keyrot_code;
+static unsigned int volatile key_rot_code;
 static int volatile cnt_rot;
 
 static const uint8_t rtc2gpio_map[16] = {36, 37, 38, 39, 34, 35, 25, 26, 33, 32, 4, 0, 2, 15, 13, 12};
@@ -62,7 +63,7 @@ static const uint8_t rtc2gpio_map[16] = {36, 37, 38, 39, 34, 35, 25, 26, 33, 32,
 void key_rot_init()
 {
   /* register isr, enable interrupt */
-  ESP_ERROR_CHECK(rtc_isr_register(keyrot_isr, NULL, RTC_CNTL_SAR_INT_ST_M));
+  ESP_ERROR_CHECK(rtc_isr_register(key_rot_isr, NULL, RTC_CNTL_SAR_INT_ST_M));
   REG_SET_BIT(RTC_CNTL_INT_ENA_REG, RTC_CNTL_ULP_CP_INT_ENA_M);
   init_ulp_prog();
   init_rtcios();
@@ -72,13 +73,19 @@ void key_rot_init()
 }
 
 
-esp_err_t reg_wait_task()
+esp_err_t key_rot_read(unsigned int* p_key_code, int timeout)
 {
-    return(0);
+ recv_task = xTaskGetCurrentTaskHandle();
+
+ if (xTaskNotifyWait(0x00, ULONG_MAX, p_key_code, timeout) == pdTRUE) {
+   return(ESP_OK);
+ }
+ else
+   return(ESP_ERR_TIMEOUT);
 }
 
 
-static void IRAM_ATTR keyrot_isr(void* arg)
+static void IRAM_ATTR key_rot_isr(void* arg)
 /**
  * ULP interrupt service routine. ULP interrupt triggered when ULP executes 'wake' instruction
  * and the Xtensa is not sleeping.
@@ -92,9 +99,9 @@ static void IRAM_ATTR keyrot_isr(void* arg)
     if (cnt_rot > CONFIG_ROT_CNT_MAX)
         cnt_rot = 0;
 
-    keyrot_code = ulp_evnt;
-    keyrot_code |= ulp_btn << 2;
-    keyrot_code |= cnt_rot << 16;
+    key_rot_code = ulp_evnt;
+    key_rot_code |= ulp_btn << 2;
+    key_rot_code |= cnt_rot << 16;
 
     ulp_evnt = 0;
     ulp_rot_st = 0;
@@ -102,7 +109,7 @@ static void IRAM_ATTR keyrot_isr(void* arg)
 
     /* notify blocked task*/
     xHigherPriorityTaskWoken = pdFALSE;
-    xTaskNotifyFromISR(recv_task, keyrot_code, eSetValueWithoutOverwrite, &xHigherPriorityTaskWoken);
+    xTaskNotifyFromISR(recv_task, key_rot_code, eSetValueWithoutOverwrite, &xHigherPriorityTaskWoken);
 
     /* clear interruopt */
     WRITE_PERI_REG(RTC_CNTL_INT_CLR_REG, READ_PERI_REG(RTC_CNTL_INT_ST_REG));

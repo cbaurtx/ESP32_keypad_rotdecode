@@ -12,6 +12,9 @@
 #ifndef KEYPAD_ROTDECODE_H
 #define KEYPAD_ROTDECODE_H
 
+#include "esp_err.h"
+
+
 /**
  * Initialize keypad and rotary AB decoder
  *
@@ -28,6 +31,7 @@
 void key_rot_init(void);
 
 /**
+ * Blocking read
  * Register the currently running task as task waiting for key inputs
  *
  * @note Only a single task can be registered
@@ -36,21 +40,6 @@ void key_rot_init(void);
  *      - ESP_OK   on success
  *      - ESP_FAIL if task cannot be registered
  */
-esp_err_t reg_wait_task(void);
-
-/**
- * Wait for key or rotary event; there is no timeout
- *
- * @note
- *
- * @return
- *      event code; btn and rot count
- *      0-1: envent 1 = button pressed, 2 = button released, 3 = rotation
- *      2-15: buttons (every bit corresponds to a button)
- *     16-31: rot counter
- */
-
-uint32_t wait_keyrot(void);
-
+esp_err_t key_rot_read(unsigned int* key_code_p, int timeout);
 
 #endif
