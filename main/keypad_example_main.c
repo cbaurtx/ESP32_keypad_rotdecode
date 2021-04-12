@@ -15,15 +15,16 @@ void app_main(void)
 {
     unsigned int key_code;
     esp_err_t err;
+
     key_rot_init();
 
     for(;;) {
-      err = key_rot_read(&key_code, 6000); // 1 minute timeout
+      err = key_rot_read(&key_code, 500); // 5 sec later change to 1 minute timeout
 
       if(err == ESP_OK)
         printf("Key event: %8x\n", key_code);
       if(err == ESP_ERR_TIMEOUT)
-        printf("Timed out");
+        printf("Timed out\n");
 
       taskYIELD();
     }

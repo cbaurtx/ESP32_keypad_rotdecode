@@ -1,6 +1,10 @@
-/* ULP assembly files are passed through C preprocessor first, so include directives
-   and C macros may be used in these files
-*/
+/**
+ *
+ * ULP polls keys an the rotary AB encoder as fast as possible until a signal changes
+ * After a debounce wait time the signals are decoded.
+ * Constants are defined with Kconfig
+ *
+ */
 
 #include "soc/rtc_cntl_reg.h"
 #include "soc/rtc_io_reg.h"
@@ -8,15 +12,18 @@
 
 #include "sdkconfig.h"
 
-/*
-   ULP register usage:
-   r0 temporary
-   r1 current value
-   r2 previous value
-   r4 memory address
-*/
+/**
+ * ULP register usage:
+ * r0 temporary
+ * r1 current value
+ * r2 previous value
+ * r4 memory address
+ */
 
-#define CONFIG_AB_RTC_A_GPIO_MASK (3 << CONFIG_AB_RTC_A_GPIO_NUM)
+/* CONFIG_AB_RTC_A_GPIO_NUM holds the RTCIOI number of encoder signal A. Encoder signal
+ * B must be conneted to the next higher RTCIIO
+ */
+#define CONFIG_AB_RTC_GPIO_MASK (3 << CONFIG_AB_RTC_A_GPIO_NUM)
 
   /* Define variables, which go into .bss section (zero-initialized data) */
   .bss
@@ -54,7 +61,8 @@ evnt:
   /* Code goes into .text section */
   .text
 
-  /* Look-up table to convert from AB old and new to rot event */
+  /* Look-up table to convert from AB old and new to counting ticks up or down
+     0 indicates no change as an invalid transition occured */
   .global st_tbl
 st_tbl:
   .long 0
@@ -77,31 +85,32 @@ st_tbl:
   .global entry
 
 entry:
+
   /* establish initial values */
   READ_RTC_REG(RTC_GPIO_IN_REG, RTC_GPIO_IN_NEXT_S, 16)
+  and r0, r0, (CONFIG_AB_RTC_GPIO_MASK | CONFIG_BTN_RTC_GPIO_MASK)
+
   move r2, r0
-  and r0, r0, (CONFIG_AB_RTC_A_GPIO_MASK | CONFIG_BTN_RTC_GPIO_MASK)
   move r3, prev_io
   st r0, r3, 0
 
-  and r0, r0, CONFIG_AB_RTC_A_GPIO_MASK
-  rsh r0, r0, 0x03
+  and r0, r0, CONFIG_AB_RTC_GPIO_MASK
+  rsh r0, r0, CONFIG_AB_RTC_A_GPIO_NUM
   move r3, rot_ab
   st r0, r3, 0
 
 loop_forever:
-
-  /* Read the value of lower 9 RTC IOs into R0 */
+  /* Read the value of lower 16 RTC IOs into R0 */
   READ_RTC_REG(RTC_GPIO_IN_REG, RTC_GPIO_IN_NEXT_S, 16)
 
-  /* current value to r1 */
-  move r1, r0
-
   /* mask unused ios */
-  and r0, r0, (CONFIG_AB_RTC_A_GPIO_MASK | CONFIG_BTN_RTC_GPIO_MASK)
+  and r0, r0, (CONFIG_AB_RTC_GPIO_MASK | CONFIG_BTN_RTC_GPIO_MASK)
+
+  move r1, r0
 
   /* io change? */
   sub r0, r1, r2
+
   jump loop_forever, EQ
 
   /* store in variable io */
@@ -115,7 +124,7 @@ loop_forever:
   READ_RTC_REG(RTC_GPIO_IN_REG, RTC_GPIO_IN_NEXT_S, 16)
 
   /* mask unused ios */
-  and r0, r0, (CONFIG_AB_RTC_A_GPIO_MASK | CONFIG_BTN_RTC_GPIO_MASK)
+  and r0, r0, (CONFIG_AB_RTC_GPIO_MASK | CONFIG_BTN_RTC_GPIO_MASK)
   sub r0, r0, r1
 
   /* io changed (no bounce or transient) */
@@ -123,8 +132,7 @@ loop_forever:
   jump loop_forever
 
 io_chg:
-  and r1, r1, CONFIG_AB_RTC_A_GPIO_MASK
-  and r2, r2, CONFIG_AB_RTC_A_GPIO_MASK
+  and r1, r1, CONFIG_AB_RTC_GPIO_MASK
 
   sub r0, r1, r2
   jump btn_chg, EQ
@@ -135,10 +143,9 @@ io_chg:
   st r0, r3, 0
 
   /* decode AB */
-  /* WRITE_RTC_REG(RTC_GPIO_OUT_REG,RTC_GPIO_OUT_DATA_S+12,1,1) */
-  move r3, curr_io
   ld r1, r3, 0
-  rsh r1, r1, 3
+  rsh r1, r1, CONFIG_AB_RTC_A_GPIO_NUM
+  and r1, r1, 3
 
   move r3, rot_ab
   ld r0, r3, 0
@@ -157,8 +164,9 @@ io_chg:
   /* store current ab as previous ab */
   move r3, curr_io
   ld r0, r3, 0
-  rsh r0, r0, 3
-  and r0, r0, 0x0003
+
+  rsh r0, r0, CONFIG_AB_RTC_A_GPIO_NUM
+  and r0, r0, 3
 
   move r3, rot_ab
   st r0, r3, 0
@@ -168,13 +176,15 @@ io_chg:
   ld r1, r3, 0
   move r2, r1
 
+  move r3, prev_io
+  st r1, r3, 0
+
   /* trigger ULP int to notify Xtensa */
   wake
 
   jump loop_forever
 
 btn_chg:
-  /* WRITE_RTC_REG(RTC_GPIO_OUT_REG,RTC_GPIO_OUT_DATA_S+12,1,0) */
   move r3, curr_io
   ld r1, r3, 0
   and r1, r1, CONFIG_BTN_RTC_GPIO_MASK
@@ -185,14 +195,17 @@ btn_chg:
   sub r0, r1, r2
   jump h_to_l, OV
 
-  /* WRITE_RTC_REG(RTC_GPIO_OUT_REG,RTC_GPIO_OUT_DATA_S+12,1,1) */
+  /* debug LED on */
+  WRITE_RTC_REG(RTC_GPIO_OUT_REG,RTC_GPIO_OUT_DATA_S+12,1,1)
+
   move r3, evnt
   move r0, 1
   st r0, r3, 0
   jump cont_1
 
 h_to_l:
-  /* WRITE_RTC_REG(RTC_GPIO_OUT_REG,RTC_GPIO_OUT_DATA_S+12,1,0) */
+  /* debug LED off */
+  WRITE_RTC_REG(RTC_GPIO_OUT_REG,RTC_GPIO_OUT_DATA_S+12,1,0)
   move r3, evnt
   move r0, 2
   st r0, r3, 0
@@ -211,7 +224,7 @@ cont_1:
   move r3, prev_io
   st r2, r3, 0
 
-  /* trigger ULP int to notify Xtensa */
+  /* trigger ULP interrupt to notify Xtensa */
   wake
 
   jump loop_forever

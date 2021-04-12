@@ -29,8 +29,8 @@
 #include "keypad_rotdecode.h"
 #include "sdkconfig.h"
 
-#define  CONFIG_AB_RTC_B_GPIO_NUM (CONFIG_AB_RTC_A_GPIO_NUM + 1)
-
+#define  CONFIG_AB_RTC_B_GPIO_NUM  (CONFIG_AB_RTC_A_GPIO_NUM + 1)
+#define CONFIG_AB_RTC_GPIO_MASK (3 << CONFIG_AB_RTC_A_GPIO_NUM)
 
 extern const uint8_t ulp_debounce_decode_bin_start[] asm("_binary_ulp_debounce_decode_bin_start");
 extern const uint8_t ulp_debounce_decode_bin_end[]   asm("_binary_ulp_debounce_decode_bin_end");
@@ -99,9 +99,9 @@ static void IRAM_ATTR key_rot_isr(void* arg)
     if (cnt_rot > CONFIG_ROT_CNT_MAX)
         cnt_rot = 0;
 
-    key_rot_code = ulp_evnt;
-    key_rot_code |= ulp_btn << 2;
-    key_rot_code |= cnt_rot << 16;
+    key_rot_code = 0x0003 & ulp_evnt;
+    key_rot_code |= (0xffff & ulp_btn) << 2;
+    key_rot_code |= (0xffff & cnt_rot) << 16;
 
     ulp_evnt = 0;
     ulp_rot_st = 0;
@@ -141,14 +141,17 @@ static void init_rtcios(void)
     int count;
 
     /* Init RTCIOs for AB encoder signals */
+    printf("init RTCIO %d\n", CONFIG_AB_RTC_A_GPIO_NUM);
     init_rtcio(CONFIG_AB_RTC_A_GPIO_NUM);
+    printf("init RTCIO %d\n", CONFIG_AB_RTC_B_GPIO_NUM);
     init_rtcio(CONFIG_AB_RTC_B_GPIO_NUM);
 
     /* Init RTCIOs for buttons */
-
     for(count=0;count<15;count++)
-        if ((CONFIG_BTN_RTC_GPIO_MASK >> count) & 0x01)
+        if ((CONFIG_BTN_RTC_GPIO_MASK >> count) & 0x01) {
+            printf("init RTCIO %d\n", count);
             init_rtcio(count);
+            }
 
     /* Disconnect GPIO12 and GPIO15 to remove current drain through
      * pullup/pulldown resistors.
@@ -156,6 +159,15 @@ static void init_rtcios(void)
      */
     rtc_gpio_isolate(GPIO_NUM_12);
     rtc_gpio_isolate(GPIO_NUM_15);
+
+    /* rtc_gpio 12 as output (Debug LED) */
+    rtc_gpio_init(GPIO_NUM_2);
+    rtc_gpio_set_direction(GPIO_NUM_2, RTC_GPIO_MODE_OUTPUT_ONLY);
+    rtc_gpio_pulldown_dis(GPIO_NUM_2);
+    rtc_gpio_pullup_dis(GPIO_NUM_2);
+
+    printf("RTCIO Mask 0x%x\n", (CONFIG_AB_RTC_GPIO_MASK | CONFIG_BTN_RTC_GPIO_MASK));
+
 }
 
 static void init_rtcio(unsigned int rtc_io)
@@ -163,6 +175,8 @@ static void init_rtcio(unsigned int rtc_io)
  int gpio;
 
  gpio = rtc2gpio_map[rtc_io];
+
+ printf("init GPIO %d\n", gpio);
 
  rtc_gpio_init(gpio);                     // after sleep io mode is RTC, but to be sure...
  rtc_gpio_set_direction(gpio, RTC_GPIO_MODE_INPUT_ONLY); // direction input (also needed for input only pins)

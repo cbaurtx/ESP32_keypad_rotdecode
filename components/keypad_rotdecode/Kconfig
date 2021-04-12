@@ -3,7 +3,7 @@
 #
 # Default settings
 #
-# RTC_GPIOs used:
+# Default RTC_GPIOs used:
 # Name                 RTC_IO num    GPIO num         sleep mask
 # Reed contact         RTC_GPIO00    GPIO36           x10
 # Rotary B             RTC_GPIO03    GPIO39           x80
@@ -27,7 +27,7 @@ menu "Keypad & rotary decoder"
     config ROT_CNT_MAX
         int "Maximum of pulse counter"
         range 1 65535
-        default 3
+        default 15
         help
             Range minus one of pulse counter of the rotary decoder. Minimum is 1 corresponding to a 1-bit counter.
             The counter is wrapping around, so counting up from ROT_CNT_MAX yields 0
