@@ -1,9 +1,14 @@
 /**
- *
- * ULP polls keys an the rotary AB encoder as fast as possible until a signal changes
+ * @file    keypad_rotdecode.h
+ * @author  Christof Baur
+ * @date    13.04.2021
+ * @version 0.1
+ * @copyright   Christof Baur
+ * @brief  ULP polls keys of the rotary AB encoder as fast as possible until a signal changes
  * After a debounce wait time the signals are decoded.
  * Constants are defined with Kconfig
  *
+ * License: MIT
  */
 
 #include "soc/rtc_cntl_reg.h"
@@ -127,22 +132,31 @@ loop_forever:
   and r0, r0, (CONFIG_AB_RTC_GPIO_MASK | CONFIG_BTN_RTC_GPIO_MASK)
   sub r0, r0, r1
 
-  /* io changed (no bounce or transient) */
+  /* io changed (no bounce and no transient) */
   jump io_chg, EQ
   jump loop_forever
 
 io_chg:
-  and r1, r1, CONFIG_AB_RTC_GPIO_MASK
+  move r3, prev_io
+  ld r2, r3, 0
+  and r2, r2, CONFIG_BTN_RTC_GPIO_MASK
+
+  move r3, curr_io
+  ld r1, r3, 0
+  and r1, r1, CONFIG_BTN_RTC_GPIO_MASK
 
   sub r0, r1, r2
-  jump btn_chg, EQ
+  jump rot_enc, EQ
+  jump btn_chg
 
+rot_enc:
   /* encoder AB changed */
   move r3, evnt
   move r0, 3
   st r0, r3, 0
 
   /* decode AB */
+  move r3, curr_io
   ld r1, r3, 0
   rsh r1, r1, CONFIG_AB_RTC_A_GPIO_NUM
   and r1, r1, 3
@@ -196,7 +210,7 @@ btn_chg:
   jump h_to_l, OV
 
   /* debug LED on */
-  WRITE_RTC_REG(RTC_GPIO_OUT_REG,RTC_GPIO_OUT_DATA_S+12,1,1)
+  /* WRITE_RTC_REG(RTC_GPIO_OUT_REG,RTC_GPIO_OUT_DATA_S+12,1,1) */
 
   move r3, evnt
   move r0, 1
@@ -205,16 +219,21 @@ btn_chg:
 
 h_to_l:
   /* debug LED off */
-  WRITE_RTC_REG(RTC_GPIO_OUT_REG,RTC_GPIO_OUT_DATA_S+12,1,0)
+  /* WRITE_RTC_REG(RTC_GPIO_OUT_REG,RTC_GPIO_OUT_DATA_S+12,1,0) */
   move r3, evnt
   move r0, 2
   st r0, r3, 0
+
+  move r3, btn
+  st r2, r3, 0
+  jump cont_2
 
 cont_1:
   /* store to variable btn */
   move r3, btn
   st r1, r3, 0
 
+cont_2:
   /* restore r1 */
   move r3, curr_io
   ld r1, r3, 0

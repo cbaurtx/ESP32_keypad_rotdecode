@@ -1,4 +1,13 @@
 #
+# @file    keypad_rotdecode.h
+# @author  Christof Baur
+# @date    13.04.2021
+# @version 0.1
+# @copyright   Christof Baur
+# @brief   ESP-32 library to interface with a rotary encoder and buttons
+#
+# License: MIT
+#
 # EXT1 wake-up is used and only RTCIO 0 to 15 are supported
 #
 # Default settings

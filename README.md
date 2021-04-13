@@ -1,9 +1,9 @@
 # keypad_rotencode
 
-is a library to use several buttons and a turn-knob with rotary AB encoder as ESP32 input device.
+Is a custom component to use several buttons and a turn-knob with rotary AB encoder as ESP32 input device.
 
-multiple errors regarding ULP fixed,
+Tested with 3 contacts and a rotary AB endcoder.
+License (MIT)
 
-function reg_wait_task() not implemented, yet
  
 

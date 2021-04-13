@@ -1,9 +1,9 @@
 /**
  * @file    keypad_rotdecode.c
  * @author  Christof Baur
- * @date    05.04.2021
+ * @date    13.04.2021
  * @version 0.1
- * @copyright   Christof Baur
+ * @copyright Christof Baur
  * @brief   ESP-32 library to interface with a rotary encoder and buttons
  *
  * License: MIT

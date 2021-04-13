@@ -1,7 +1,7 @@
 /**
  * @file    keypad_rotdecode.h
  * @author  Christof Baur
- * @date    05.04.2021
+ * @date    13.04.2021
  * @version 0.1
  * @copyright   Christof Baur
  * @brief   ESP-32 library to interface with a rotary encoder and buttons
@@ -14,6 +14,9 @@
 
 #include "esp_err.h"
 
+#define EVNT_BTN_PRSS 1
+#define EVNT_BTN_RELS 2
+#define EVNT_ROT 3
 
 /**
  * Initialize keypad and rotary AB decoder
