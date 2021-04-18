@@ -40,8 +40,8 @@ void key_rot_init(void);
  * @note Only a single task can be registered
  *
  * @return
- *      - ESP_OK   on success
- *      - ESP_FAIL if task cannot be registered
+ *      - ESP_OK        success
+ *      - ESP_ERR_TIMEOUT   timeout
  */
 esp_err_t key_rot_read(unsigned int* key_code_p, int timeout);
 
